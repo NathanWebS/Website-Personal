@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Menu</title>
+  <style>
+    /* Background animasi gradien gelap */
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      background: linear-gradient(135deg, #0a0a0a, #1a1a2e, #000000, #0f0f1f);
+      background-size: 400% 400%;
+      animation: gradientBG 20s ease infinite;
+      color: #ddd; /* putih agak gelap */
+      position: relative;
+      height: 100vh;
+    }
+
+    @keyframes gradientBG {
+      0% {background-position:0% 50%;}
+      50% {background-position:100% 50%;}
+      100% {background-position:0% 50%;}
+    }
+
+    /* Container menu */
+    .menu {
+      position: relative;
+      margin-top: 0;
+      height: 100vh;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.5s ease;
+      z-index: 10;
+    }
+
+    .menu.shift-left {
+      transform: translateX(-calc(50vw));
+      align-items: flex-start;
+      padding-left: 20px;
+    }
+
+    .game-title {
+      font-size: 28px; /* diperkecil */
+      margin-bottom: 20px; /* dikurangi */
+      transition: transform 0.5s ease;
+      color: #bbb;
+      text-shadow:
+        0 0 5px #666,
+        0 0 15px #555;
+      font-weight: 700;
+    }
+
+    button {
+      background-color: #112233;
+      border: 2px solid #445577;
+      color: #eee;
+      padding: 10px 24px;
+      font-size: 14px; /* diperkecil */
+      margin: 6px 0;
+      cursor: pointer;
+      border-radius: 10px;
+      transition: background-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
+      width: 160px;
+      max-width: 90vw;
+      box-shadow: 0 0 10px rgba(50, 70, 100, 0.6);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      user-select: none;
+    }
+
+    button:hover {
+      background-color: #223355;
+      border-color: #88aaff;
+      box-shadow: 0 0 20px #5577bb;
+      transform: scale(1.07);
+      color: #fff;
+    }
+
+    button:active {
+      transform: scale(0.98);
+      box-shadow: 0 0 8px #335577 inset;
+    }
+
+    /* Panel info sliding dari kanan */
+    #infoBox {
+      position: fixed;
+      top: 0;
+      right: 0;
+      height: 100vh;
+      width: 50vw;
+      max-width: 400px;
+      background-color: rgba(10, 15, 25, 0.95);
+      color: #ccc;
+      box-shadow: -4px 0 25px rgba(0,0,40,0.95);
+      padding: 20px;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.5s ease;
+      z-index: 1000;
+      font-size: 16px;
+      line-height: 1.5;
+      border-left: 2px solid #446688;
+      text-shadow: 0 0 5px #446688;
+      font-weight: 500;
+    }
+
+    #infoBox.active {
+      transform: translateX(0);
+    }
+
+    #infoBox h2 {
+      margin-top: 0;
+      color: #5588bb;
+      text-shadow: 0 0 15px #5577aa;
+    }
+
+    /* Bintang kecil */
+    .star {
+      position: fixed;
+      background: rgba(180, 200, 230, 0.25);
+      border-radius: 50%;
+      opacity: 0.5;
+      filter: blur(1px);
+      animation: twinkle 3s infinite alternate;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    @keyframes twinkle {
+      from {opacity: 0.3;}
+      to {opacity: 0.6;}
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Bintang kecil -->
+  <div class="star" style="width: 3px; height: 3px; top: 10%; left: 20%; animation-delay: 0s;"></div>
+  <div class="star" style="width: 2px; height: 2px; top: 30%; left: 50%; animation-delay: 1.5s;"></div>
+  <div class="star" style="width: 4px; height: 4px; top: 70%; left: 80%; animation-delay: 0.5s;"></div>
+  <div class="star" style="width: 2px; height: 2px; top: 50%; left: 90%; animation-delay: 2s;"></div>
+  <div class="star" style="width: 3px; height: 3px; top: 85%; left: 30%; animation-delay: 1s;"></div>
+
+  <div class="menu" id="menuContainer">
+    <h1 class="game-title">Galactic Pixel War</h1>
+    <button class="start-button" onclick="startGame()">Start</button>
+    <button class="info-button" onclick="toggleInfo()">Info</button>
+  </div>
+
+  <div id="infoBox">
+    <h2>Kontrol dan Info Game</h2>
+    <ul>
+      <li><b>Gerak:</b> W A S D</li>
+      <li><b>Tembak:</b> Spasi</li>
+      <li><b>Skill E:</b> Triple Shot (Cooldown 20 detik)</li>
+      <li><b>Skill Q:</b> Speed Boost (Cooldown 10 detik, durasi 15 detik)</li>
+      <li><b>Skill R:</b> Rapid Fire (Cooldown 35 detik, durasi 10 detik) </li>
+      <li><b>Ammo:</b> Maksimal 10 peluru, reload otomatis 1.5 detik</li>
+      <li><b>Tujuan:</b> Capai skor 1000 untuk menyelesaikan game</li>
+      <li><b>Catatan:</b> Masi belum sempurna (tidak ada fitur GAMEOVER)</li>
+    </ul>
+  </div>
+
+  <script>
+    function startGame() {
+      window.location.href = 'game.html';
+    }
+
+    function toggleInfo() {
+      const infoBox = document.getElementById('infoBox');
+      const menu = document.getElementById('menuContainer');
+
+      if (infoBox.classList.contains('active')) {
+        infoBox.classList.remove('active');
+        menu.classList.remove('shift-left');
+      } else {
+        infoBox.classList.add('active');
+        menu.classList.add('shift-left');
+      }
+    }
+  </script>
+</body>
+</html>
