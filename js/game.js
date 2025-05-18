@@ -26,25 +26,26 @@ let speedSkillCooldown = 0;
 let isSpeedBoostActive = false;
 let wave = 1;
 let totalZombiesSpawned = 0;
+let bossSpawned = false;
 
 const SKILL_COOLDOWN_TIME = 20000;
 const SPEED_SKILL_COOLDOWN_TIME = 30000;
 const SPEED_BOOST_DURATION = 15000;
 
-// ====== TAMBAHAN UNTUK SKILL R ======
 let skillRActive = false;
 let skillRAutoFireEvent = null;
 let skillRCooldown = 0;
-const SKILL_R_DURATION = 10000; // 10 detik aktif
-const SKILL_R_COOLDOWN_TIME = 35000; // 35 detik cooldown mwehehe (nguawor ygy)
-// ====================================
+const SKILL_R_DURATION = 10000;
+const SKILL_R_COOLDOWN_TIME = 35000;
 
 let skillButton, skillButtonText;
-let skillEText, skillQText, skillRText; // skillRText ditambah di sini
+let skillEText, skillQText, skillRText;
 let wasd;
 let bulletCount = 0;
 const MAX_BULLETS = 10;
 let isReloading = false;
+
+const MAX_ZOMBIES = 30;  // batas zombie aktif maksimal
 
 const game = new Phaser.Game(config);
 
@@ -53,6 +54,7 @@ function preload() {
   this.load.image('bullet', 'assets/bullet.png');
   this.load.image('zombie1', 'assets/zombie1.png');
   this.load.image('zombie2', 'assets/zombie2.png');
+  this.load.image('boss', 'assets/zombie_boss.png');
   this.load.audio('shoot', 'assets/shoot.mp3');
   this.load.audio('zombie_die', 'assets/zombie_die.mp3');
 }
@@ -86,7 +88,6 @@ function create() {
   });
 
   const scene = this;
-
   spawnZombies(scene);
 
   this.input.keyboard.on('keydown-SPACE', () => {
@@ -115,22 +116,34 @@ function create() {
     }
   });
 
-  // ====== TAMBAHAN EVENT KEYDOWN-R untuk SKILL R ======
   this.input.keyboard.on('keydown-R', () => {
     if (scene.time.now > skillRCooldown && !skillRActive) {
       activateSkillR(scene);
     }
   });
-  // =======================================================
 
   this.physics.add.overlap(bullets, zombies, (bullet, zombie) => {
     bullet.destroy();
-    zombie.destroy();
-    scene.sound.play('zombie_die');
-    score += 10;
+
+    if (zombie.isBoss) {
+      zombie.hp -= 1;
+      updateBossHealthBar(zombie);
+      if (zombie.hp <= 0) {
+        if (zombie.healthBar) {
+          zombie.healthBar.destroy();
+        }
+        zombie.destroy();
+        scene.sound.play('zombie_die');
+        score += 100;
+      }
+    } else {
+      zombie.destroy();
+      scene.sound.play('zombie_die');
+      score += 10;
+    }
 
     if (score >= 1000) {
-      gameOver(scene);
+      gameOver(scene, true);
     } else {
       updateScoreText();
     }
@@ -153,15 +166,35 @@ function update() {
 
   updateSkillButtonCooldown();
   updateAmmoText();
+
+  // Hapus bullet yang keluar layar
+  bullets.getChildren().forEach(bullet => {
+    if (bullet.y < -50) bullet.destroy();
+  });
+
+  // Hapus zombie yang keluar layar bawah
+  zombies.getChildren().forEach(zombie => {
+    if (zombie.y > window.innerHeight + 50) zombie.destroy();
+  });
+
+  // Batasi jumlah zombie di scene (spawnZombies juga sudah cek, ini double safety)
+  if (zombies.getChildren().length > MAX_ZOMBIES) {
+    zombies.getChildren().slice(MAX_ZOMBIES).forEach(z => z.destroy());
+  }
+
+  // Update health bar boss jika ada
+  let boss = zombies.getChildren().find(z => z.isBoss);
+  if (boss) {
+    updateBossHealthBar(boss);
+  }
 }
 
-// ================== TAMBAHAN FUNCTION UNTUK SKILL R ====================
 function activateSkillR(scene) {
   skillRActive = true;
   skillRCooldown = scene.time.now + SKILL_R_COOLDOWN_TIME + SKILL_R_DURATION;
 
   skillRAutoFireEvent = scene.time.addEvent({
-    delay: 100, // tembak tiap 100 ms (lebih cepat)
+    delay: 100,
     loop: true,
     callback: () => {
       shootAuto(scene, player.x, player.y);
@@ -178,20 +211,18 @@ function activateSkillR(scene) {
 }
 
 function shootAuto(scene, x, y) {
-  // Tembak peluru tanpa mengurangi ammo saat skill R aktif
   const bullet = bullets.create(x, y, 'bullet');
   bullet.setScale(0.3);
-  bullet.setVelocityY(-500); // peluru lebih cepat
+  bullet.setVelocityY(-500);
   scene.sound.play('shoot');
 }
-// =======================================================================
 
 function shootBullet(scene, x, y) {
   if (bulletCount >= MAX_BULLETS || isReloading) return;
 
   const bullet = bullets.create(x, y, 'bullet');
-  bullet.setScale(0.1);
-  bullet.setVelocityY(-300);
+  bullet.setScale(0.3);
+  bullet.setVelocityY(-400);
   scene.sound.play('shoot');
 }
 
@@ -224,10 +255,28 @@ function startReload(scene) {
 
 function spawnZombies(scene) {
   scene.time.addEvent({
-    delay: 3000 - (wave * 400),
+    delay: Math.max(500, 3000 - (wave * 400)),
     loop: true,
     callback: () => {
       if (wave > 5) return;
+
+      if (bossSpawned) return;
+
+      if (zombies.getChildren().length >= MAX_ZOMBIES) return;
+
+      if (wave === 5 && !bossSpawned) {
+        const boss = zombies.create(scene.cameras.main.centerX, 0, 'boss');
+        boss.setScale(1);
+        boss.setVelocityY(30);
+        boss.hp = 20;
+        boss.isBoss = true;
+        bossSpawned = true;
+
+        boss.healthBar = scene.add.graphics();
+        updateBossHealthBar(boss);
+
+        return;
+      }
 
       for (let i = 0; i < wave; i++) {
         const tipe = Phaser.Math.Between(1, 2);
@@ -240,25 +289,42 @@ function spawnZombies(scene) {
             'zombie1'
           );
           zombie.setScale(0.2);
-          zombie.setVelocityY(Phaser.Math.Between(80, 130));
+          zombie.setVelocityY(Phaser.Math.Between(70, 110));
         } else {
           zombie = zombies.create(
             Phaser.Math.Between(50, window.innerWidth - 50),
             0,
             'zombie2'
           );
-          zombie.setScale(0.5);
+          zombie.setScale(0.4);
           zombie.setVelocityY(Phaser.Math.Between(30, 70));
         }
-        totalZombiesSpawned++;
 
-        if (totalZombiesSpawned % 20 === 0 && wave < 5) {
-          wave++;
-          updateScoreText();
-        }
+        totalZombiesSpawned++;
+      }
+
+      if (totalZombiesSpawned > 0 && totalZombiesSpawned % 20 === 0 && wave < 5) {
+        wave++;
+        updateScoreText();
       }
     }
   });
+}
+
+function updateBossHealthBar(boss) {
+  const barWidth = 100;
+  const barHeight = 10;
+  const x = boss.x - barWidth / 2;
+  const y = boss.y - boss.height / 2 - 20;
+
+  boss.healthBar.clear();
+
+  boss.healthBar.fillStyle(0xff0000);
+  boss.healthBar.fillRect(x, y, barWidth, barHeight);
+
+  const hpWidth = (boss.hp / 20) * barWidth;
+  boss.healthBar.fillStyle(0x00ff00);
+  boss.healthBar.fillRect(x, y, hpWidth, barHeight);
 }
 
 function activateSpeedBoost(scene) {
@@ -280,6 +346,7 @@ function createSkillButton(scene) {
     .setOrigin(0, 0)
     .setAlpha(0.8)
     .setInteractive();
+
   skillButtonText = scene.add.text(x + btnSize / 2, y + btnSize / 2, 'SKILL', {
     fontSize: '20px',
     fill: '#fff'
@@ -301,45 +368,25 @@ function createSkillButton(scene) {
     fontSize: '20px',
     fill: '#ffcc00'
   });
-  // Tambah teks status skill R
   skillRText = scene.add.text(16, window.innerHeight - 110, '', {
     fontSize: '20px',
-    fill: '#ff66cc'
+    fill: '#ff4444'
   });
 }
 
 function updateSkillButtonCooldown() {
-  const now = game.scene.scenes[0].time.now;
+  const scene = game.scene.scenes[0];
+  if (!scene) return;
 
-  const eRemaining = skillCooldown - now;
-  if (eRemaining > 0) {
-    skillButton.setFillStyle(0x555555);
-    skillEText.setText('E Skill: ' + Math.ceil(eRemaining / 1000) + 's');
-  } else {
-    skillButton.setFillStyle(0x0099ff);
-    skillEText.setText('E Skill: Ready');
-  }
+  let now = scene.time.now;
 
-  const qRemaining = speedSkillCooldown - now;
-  if (isSpeedBoostActive) {
-    skillQText.setText('Q Skill: ACTIVE');
-  } else if (qRemaining > 0) {
-    skillQText.setText('Q Skill: ' + Math.ceil(qRemaining / 1000) + 's');
-  } else {
-    skillQText.setText('Q Skill: Ready');
-  }
+  let cdE = skillCooldown > now ? Math.ceil((skillCooldown - now) / 1000) : 0;
+  let cdQ = speedSkillCooldown > now ? Math.ceil((speedSkillCooldown - now) / 1000) : 0;
+  let cdR = skillRCooldown > now ? Math.ceil((skillRCooldown - now) / 1000) : 0;
 
-  // Skill R cooldown update
-  const rRemaining = skillRCooldown - now;
-  if (skillRActive) {
-    skillRText.setText('R Skill: ACTIVE');
-  } else if (rRemaining > 0) {
-    skillRText.setText('R Skill: ' + Math.ceil(rRemaining / 1000) + 's');
-  } else {
-    skillRText.setText('R Skill: Ready');
-  }
-
-  skillButtonText.setText('SKILL');
+  skillEText.setText(`E (Triple Shot): ${cdE > 0 ? cdE + 's' : 'Ready'}`);
+  skillQText.setText(`Q (Speed Boost): ${cdQ > 0 ? cdQ + 's' : 'Ready'}`);
+  skillRText.setText(`R (Auto Fire): ${cdR > 0 ? cdR + 's' : 'Ready'}`);
 }
 
 function updateScoreText() {
@@ -347,51 +394,38 @@ function updateScoreText() {
 }
 
 function updateAmmoText() {
-  scoreText.setText(`Score: ${score}\nWave: ${wave}\nAmmo: ${MAX_BULLETS - bulletCount}/${MAX_BULLETS}`);
+  scoreText.setText(`Score: ${score}\nWave: ${wave}\nAmmo: ${MAX_BULLETS - bulletCount}/${MAX_BULLETS}${isReloading ? ' (Reloading...)' : ''}`);
 }
 
-// FUNGSI GAME OVER DENGAN TOMBOL RESTART
-function gameOver(scene) {
-  player.setVelocity(0);
-  player.body.enable = false;
+function gameOver(scene, isWin = false) {
+  player.disableBody(true, true);
 
-  zombies.clear(true, true);
-  scene.time.removeAllEvents();
-
-  scene.input.keyboard.enabled = false;
-
-  const centerX = scene.cameras.main.width / 2;
-  const centerY = scene.cameras.main.height / 2;
-
-  const finishText = scene.add.text(centerX, centerY - 40, 'Finished', {
+  let msg = isWin ? 'You Win!' : 'Game Over!';
+  let msgText = scene.add.text(scene.cameras.main.centerX, scene.cameras.main.centerY, msg, {
     fontSize: '64px',
-    fill: '#00ff00',
-    fontWeight: 'bold'
-  }).setOrigin(0.5).setAlpha(0);
-
-  const btnWidth = 160;
-  const btnHeight = 50;
-  const btnY = centerY + 40;
-
-  const restartBtn = scene.add.rectangle(centerX, btnY, btnWidth, btnHeight, 0x00aa00)
-    .setOrigin(0.5)
-    .setAlpha(0)
-    .setInteractive({ useHandCursor: true });
-
-  const restartText = scene.add.text(centerX, btnY, 'Restart', {
-    fontSize: '28px',
-    fill: '#ffffff',
-    fontWeight: 'bold'
-  }).setOrigin(0.5).setAlpha(0);
-
-  scene.tweens.add({
-    targets: [finishText, restartBtn, restartText],
-    alpha: 1,
-    duration: 1500,
-    ease: 'Power2'
+    fill: '#ff0000'
   });
+  msgText.setOrigin(0.5);
 
-  restartBtn.on('pointerdown', () => {
-    window.location.href = 'menu.html';
+  scene.time.addEvent({
+    delay: 4000,
+    callback: () => {
+      scene.scene.restart();
+      resetGameVariables();
+    }
   });
+}
+
+function resetGameVariables() {
+  score = 0;
+  wave = 1;
+  bulletCount = 0;
+  isReloading = false;
+  bossSpawned = false;
+  skillCooldown = 0;
+  speedSkillCooldown = 0;
+  isSpeedBoostActive = false;
+  skillRActive = false;
+  skillRCooldown = 0;
+  totalZombiesSpawned = 0;
 }
